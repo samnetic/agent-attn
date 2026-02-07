@@ -1,0 +1,5 @@
+notify = ["bash", "-lc", "~/.local/bin/agent-attn --app 'Codex' --event 'agent-turn-complete' --message 'Codex needs attention'"]
+
+[tui]
+notifications = ["approval-requested", "agent-turn-complete"]
+notification_method = "bel"

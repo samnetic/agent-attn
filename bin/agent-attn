@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP="AI Agent"
+EVENT="attention"
+MESSAGE="Action required"
+URGENCY="normal"
+DRY_RUN="0"
+
+usage() {
+  cat <<'EOF'
+Usage: agent-attn [options]
+
+Options:
+  --app <name>       Application name (default: AI Agent)
+  --event <name>     Event type (default: attention)
+  --message <text>   Notification message (default: Action required)
+  --urgency <level>  low|normal|critical (default: normal)
+  --dry-run          Print actions instead of sending notifications
+  -h, --help         Show this help
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --app)
+      APP="$2"
+      shift 2
+      ;;
+    --event)
+      EVENT="$2"
+      shift 2
+      ;;
+    --message)
+      MESSAGE="$2"
+      shift 2
+      ;;
+    --urgency)
+      URGENCY="$2"
+      shift 2
+      ;;
+    --dry-run)
+      DRY_RUN="1"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'Unknown option: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ "$DRY_RUN" == "1" ]]; then
+  printf 'BELL\n'
+  printf 'APP=%s\n' "$APP"
+  printf 'EVENT=%s\n' "$EVENT"
+  printf 'URGENCY=%s\n' "$URGENCY"
+  printf 'MESSAGE=%s\n' "$MESSAGE"
+  exit 0
+fi
+
+printf '\a'
+
+POWERSHELL_EXE="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+if [[ -x "$POWERSHELL_EXE" ]]; then
+  "$POWERSHELL_EXE" -NoProfile -Command \
+    "Import-Module BurntToast -ErrorAction SilentlyContinue; if (Get-Command New-BurntToastNotification -ErrorAction SilentlyContinue) { New-BurntToastNotification -Text '$APP', '$MESSAGE' | Out-Null }"
+fi

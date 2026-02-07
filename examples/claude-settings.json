@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "permission_prompt|idle_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/agent-attn --app 'Claude Code' --event 'notification' --message 'Approval or input needed'"
+          }
+        ]
+      }
+    ]
+  }
+}
