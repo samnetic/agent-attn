@@ -13,6 +13,26 @@ Get reliable "needs your approval" alerts from **Claude Code**, **Codex**, and *
 
 ## Quickstart (2 minutes)
 
+### One-line install (curl | bash)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/samnetic/agent-attn/main/scripts/bootstrap.sh | bash
+```
+
+Pin to a version (recommended for teams):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/samnetic/agent-attn/main/scripts/bootstrap.sh | bash -s -- --version v0.1.0
+```
+
+Dry-run the installer plan:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/samnetic/agent-attn/main/scripts/bootstrap.sh | bash -s -- --dry-run
+```
+
+### Manual clone install
+
 ```bash
 git clone https://github.com/samnetic/agent-attn.git
 cd agent-attn
@@ -58,6 +78,7 @@ Copy `examples/opencode-plugin.js` to `.opencode/plugins/agent-attn.js` (or glob
 
 ## Scripts
 
+- `scripts/bootstrap.sh`: curl-pipe installer with latest-release default and optional `--version`
 - `scripts/install.sh`: installs `agent-attn` into `~/.local/bin`
 - `scripts/uninstall.sh`: removes installed binary
 - `scripts/doctor.sh`: validates WSL/PowerShell/BurntToast prerequisites

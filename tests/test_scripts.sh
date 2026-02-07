@@ -7,6 +7,7 @@ INSTALL="$ROOT_DIR/scripts/install.sh"
 DOCTOR="$ROOT_DIR/scripts/doctor.sh"
 E2E="$ROOT_DIR/scripts/test-e2e.sh"
 UNINSTALL="$ROOT_DIR/scripts/uninstall.sh"
+BOOTSTRAP="$ROOT_DIR/scripts/bootstrap.sh"
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -26,6 +27,7 @@ test_scripts_exist() {
   [[ -x "$DOCTOR" ]] || fail "missing executable: $DOCTOR"
   [[ -x "$E2E" ]] || fail "missing executable: $E2E"
   [[ -x "$UNINSTALL" ]] || fail "missing executable: $UNINSTALL"
+  [[ -x "$BOOTSTRAP" ]] || fail "missing executable: $BOOTSTRAP"
 }
 
 test_install_dry_run() {
@@ -44,10 +46,29 @@ test_doctor_runs() {
   rm -f "$out"
 }
 
+test_bootstrap_dry_run() {
+  local out
+  out="$(mktemp)"
+  "$BOOTSTRAP" --dry-run >"$out"
+  assert_contains "Bootstrap plan" "$out"
+  assert_contains "repository: samnetic/agent-attn" "$out"
+  rm -f "$out"
+}
+
+test_bootstrap_unknown_option_exits_2() {
+  set +e
+  "$BOOTSTRAP" --wat >/dev/null 2>&1
+  local rc=$?
+  set -e
+  [[ "$rc" -eq 2 ]] || fail "expected bootstrap unknown option exit code 2, got $rc"
+}
+
 main() {
   test_scripts_exist
   test_install_dry_run
   test_doctor_runs
+  test_bootstrap_dry_run
+  test_bootstrap_unknown_option_exits_2
   printf 'All script tests passed.\n'
 }
 
