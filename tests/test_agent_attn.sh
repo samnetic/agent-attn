@@ -33,6 +33,19 @@ test_dry_run_outputs_bell_marker() {
   assert_contains "TAB_MARK=1" "$out"
   assert_contains "TAB_PREFIX=[ATTN]" "$out"
   assert_contains "LATCH=0" "$out"
+  assert_contains "WINDOW=" "$out"
+  assert_contains "WINDOW_TAB=0" "$out"
+  assert_contains "CLICK_FOCUS=none" "$out"
+  rm -f "$out"
+}
+
+test_window_focus_dry_run() {
+  local out
+  out="$(mktemp)"
+  "$BIN" --dry-run --window "claude-main" --tab 2 --app "TestApp" >"$out"
+  assert_contains "WINDOW=claude-main" "$out"
+  assert_contains "WINDOW_TAB=2" "$out"
+  assert_contains "CLICK_FOCUS=protocol" "$out"
   rm -f "$out"
 }
 
@@ -77,14 +90,24 @@ test_unknown_option_exits_2() {
   [[ "$rc" -eq 2 ]] || fail "expected exit code 2 for unknown option, got $rc"
 }
 
+test_invalid_tab_exits_2() {
+  set +e
+  "$BIN" --dry-run --tab xyz >/dev/null 2>&1
+  local rc=$?
+  set -e
+  [[ "$rc" -eq 2 ]] || fail "expected exit code 2 for invalid tab, got $rc"
+}
+
 main() {
   test_script_exists_and_is_executable
   test_dry_run_outputs_bell_marker
   test_help_outputs_usage
   test_unknown_option_exits_2
+  test_invalid_tab_exits_2
   test_clear_tab_mark_dry_run
   test_latch_dry_run
   test_clear_latch_dry_run
+  test_window_focus_dry_run
   printf 'All tests passed.\n'
 }
 

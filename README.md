@@ -7,7 +7,7 @@ Get reliable "needs your approval" alerts from **Claude Code**, **Codex**, and *
 ## Why this is a good universal UX
 
 - One notifier command for all agents: `agent-attn`
-- Native Windows toast path (PowerShell + BurntToast when available)
+- Native Windows toast path, including click-to-focus via protocol for named WT windows
 - Terminal fallback path (`BEL`) for taskbar flash/sound in Windows Terminal
 - Tab attention marker: sets title to `[ATTN] <App>` so the active tab is visually flagged
 - Optional bell latch mode: keeps tab bell signal active until you clear it
@@ -54,6 +54,15 @@ Send a real notification and mark tab title:
 agent-attn --app "Smoke" --event "test" --message "Hello"
 ```
 
+Enable click-to-focus for a named Windows Terminal window:
+
+```bash
+agent-attn --window "claude-main" --app "Claude Code" --event "permission_prompt" --message "Approval needed"
+```
+
+The first `--window` call auto-registers a Windows protocol handler (`agent-attn://...`) for your user.
+After that, clicking the toast body can focus the named window and tab.
+
 Keep alerting until you clear it (best for missed approvals):
 
 ```bash
@@ -90,6 +99,16 @@ Set bell style in your Windows Terminal `settings.json`:
 
 This enables taskbar flash/sound fallback when `agent-attn` emits a bell.
 
+## Best UX architecture (recommended)
+
+Use one named Windows Terminal window per agent session. Then send notifications with `--window`:
+
+- Claude Code window: `claude-main`
+- Codex window: `codex-main`
+- OpenCode window: `opencode-main`
+
+This avoids fragile "which tab?" ambiguity and makes click-focus deterministic.
+
 ## Integrations
 
 ### Claude Code
@@ -111,6 +130,12 @@ Copy `examples/opencode-plugin.js` to `.opencode/plugins/agent-attn.js` (or glob
 - `scripts/uninstall.sh`: removes installed binary
 - `scripts/doctor.sh`: validates WSL/PowerShell/BurntToast prerequisites
 - `scripts/test-e2e.sh`: runs test suite + smoke checks
+
+## Why PowerShell is still needed
+
+Windows toast interaction and Windows URI protocol registration are Windows features.
+From WSL, `agent-attn` bridges to Windows PowerShell for those parts.
+Without this bridge, you still get bell/taskbar fallback but not smooth click-to-focus behavior.
 
 ## Testing
 

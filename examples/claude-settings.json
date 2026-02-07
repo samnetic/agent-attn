@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.local/bin/agent-attn --latch --app 'Claude Code' --event 'permission_prompt' --message 'Approval needed'"
+            "command": "~/.local/bin/agent-attn --latch --window 'claude-main' --app 'Claude Code' --event 'permission_prompt' --message 'Approval needed'"
           }
         ]
       },

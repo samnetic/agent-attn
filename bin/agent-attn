@@ -12,6 +12,8 @@ CLEAR_TAB_MARK="0"
 LATCH="0"
 LATCH_INTERVAL="4"
 CLEAR_LATCH="0"
+WINDOW_NAME=""
+WINDOW_TAB="0"
 
 STATE_DIR="${HOME}/.cache/agent-attn"
 
@@ -30,6 +32,8 @@ Options:
   --latch            Keep ringing bell in background until cleared
   --latch-interval <sec>  Bell repeat interval for latch mode (default: 4)
   --clear-latch      Stop background bell latch for this terminal tab
+  --window <name>    Target named Windows Terminal window for click focus
+  --tab <index>      Target tab index in the window (default: 0)
   --dry-run          Print actions instead of sending notifications
   -h, --help         Show this help
 EOF
@@ -81,6 +85,14 @@ while [[ $# -gt 0 ]]; do
       CLEAR_LATCH="1"
       shift
       ;;
+    --window)
+      WINDOW_NAME="$2"
+      shift 2
+      ;;
+    --tab)
+      WINDOW_TAB="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -95,6 +107,11 @@ done
 
 if ! [[ "$LATCH_INTERVAL" =~ ^[0-9]+$ ]] || [[ "$LATCH_INTERVAL" -lt 1 ]]; then
   printf 'Invalid --latch-interval value: %s\n' "$LATCH_INTERVAL" >&2
+  exit 2
+fi
+
+if ! [[ "$WINDOW_TAB" =~ ^[0-9]+$ ]]; then
+  printf 'Invalid --tab value: %s\n' "$WINDOW_TAB" >&2
   exit 2
 fi
 
@@ -143,6 +160,8 @@ if [[ "$DRY_RUN" == "1" ]]; then
   printf 'TAB_PREFIX=%s\n' "$TAB_PREFIX"
   printf 'LATCH=%s\n' "$LATCH"
   printf 'LATCH_INTERVAL=%s\n' "$LATCH_INTERVAL"
+  printf 'WINDOW=%s\n' "$WINDOW_NAME"
+  printf 'WINDOW_TAB=%s\n' "$WINDOW_TAB"
   if [[ "$CLEAR_TAB_MARK" == "1" ]]; then
     printf 'TAB_ACTION=clear\n'
   else
@@ -152,6 +171,11 @@ if [[ "$DRY_RUN" == "1" ]]; then
     printf 'LATCH_ACTION=clear\n'
   else
     printf 'LATCH_ACTION=start\n'
+  fi
+  if [[ -n "$WINDOW_NAME" ]]; then
+    printf 'CLICK_FOCUS=protocol\n'
+  else
+    printf 'CLICK_FOCUS=none\n'
   fi
   exit 0
 fi
@@ -177,8 +201,88 @@ fi
 
 POWERSHELL_EXE="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 if [[ -x "$POWERSHELL_EXE" ]]; then
-  APP_PS="${APP//\'/\'\'}"
-  MESSAGE_PS="${MESSAGE//\'/\'\'}"
-  "$POWERSHELL_EXE" -NoProfile -Command \
-    "Import-Module BurntToast -ErrorAction SilentlyContinue; if (Get-Command New-BurntToastNotification -ErrorAction SilentlyContinue) { New-BurntToastNotification -Text '$APP_PS', '$MESSAGE_PS' | Out-Null }"
+  if [[ -n "$WINDOW_NAME" ]]; then
+    LAUNCH_URI="agent-attn://focus?window=${WINDOW_NAME}&tab=${WINDOW_TAB}"
+    PS_SCRIPT="$(mktemp --suffix=.ps1)"
+    cat >"$PS_SCRIPT" <<'EOF'
+param([string]$App,[string]$Message,[string]$LaunchUri)
+
+$ErrorActionPreference = "SilentlyContinue"
+
+function Ensure-ProtocolHandler {
+  $handlerDir = Join-Path $env:LOCALAPPDATA "agent-attn"
+  $handlerPath = Join-Path $handlerDir "agent-attn-handler.ps1"
+
+  if (-not (Test-Path $handlerDir)) {
+    New-Item -ItemType Directory -Path $handlerDir -Force | Out-Null
+  }
+
+  $handlerContent = @'
+param([string]$Uri)
+$ErrorActionPreference = "SilentlyContinue"
+
+try {
+  Add-Type -AssemblyName System.Web | Out-Null
+  $parsed = [System.Uri]$Uri
+  $query = [System.Web.HttpUtility]::ParseQueryString($parsed.Query)
+
+  $window = $query["window"]
+  if ([string]::IsNullOrWhiteSpace($window)) { exit 0 }
+
+  $tab = $query["tab"]
+  if ([string]::IsNullOrWhiteSpace($tab)) { $tab = "0" }
+
+  Start-Process wt.exe -ArgumentList @("-w", $window, "focus-tab", "-t", $tab) | Out-Null
+} catch {
+}
+'@
+
+  Set-Content -Path $handlerPath -Value $handlerContent -Encoding UTF8
+
+  $classRoot = "HKCU:\Software\Classes\agent-attn"
+  New-Item -Path $classRoot -Force | Out-Null
+  Set-ItemProperty -Path $classRoot -Name "(Default)" -Value "URL:agent-attn" -Force
+  New-ItemProperty -Path $classRoot -Name "URL Protocol" -Value "" -PropertyType String -Force | Out-Null
+
+  $commandPath = Join-Path $classRoot "shell\open\command"
+  New-Item -Path $commandPath -Force | Out-Null
+  $cmd = '"' + $env:SystemRoot + '\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "' + $handlerPath + '" "%1"'
+  Set-ItemProperty -Path $commandPath -Name "(Default)" -Value $cmd -Force
+}
+
+function Show-ProtocolToast {
+  param([string]$Title,[string]$Body,[string]$Uri)
+
+  Add-Type -AssemblyName System.Runtime.WindowsRuntime | Out-Null
+  $null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
+  $null = [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime]
+
+  $safeTitle = [System.Security.SecurityElement]::Escape($Title)
+  $safeBody = [System.Security.SecurityElement]::Escape($Body)
+  $safeUri = [System.Security.SecurityElement]::Escape($Uri)
+
+  $xmlText = "<toast activationType='protocol' launch='$safeUri'><visual><binding template='ToastGeneric'><text>$safeTitle</text><text>$safeBody</text></binding></visual></toast>"
+  $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+  $xml.LoadXml($xmlText)
+  $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+  $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("PowerShell")
+  $notifier.Show($toast)
+}
+
+Ensure-ProtocolHandler
+Show-ProtocolToast -Title $App -Body $Message -Uri $LaunchUri
+EOF
+    if command -v wslpath >/dev/null 2>&1; then
+      PS_SCRIPT_WIN="$(wslpath -w "$PS_SCRIPT")"
+      "$POWERSHELL_EXE" -NoProfile -ExecutionPolicy Bypass -File "$PS_SCRIPT_WIN" -App "$APP" -Message "$MESSAGE" -LaunchUri "$LAUNCH_URI"
+    else
+      "$POWERSHELL_EXE" -NoProfile -ExecutionPolicy Bypass -File "$PS_SCRIPT" -App "$APP" -Message "$MESSAGE" -LaunchUri "$LAUNCH_URI"
+    fi
+    rm -f "$PS_SCRIPT"
+  else
+    APP_PS="${APP//\'/\'\'}"
+    MESSAGE_PS="${MESSAGE//\'/\'\'}"
+    "$POWERSHELL_EXE" -NoProfile -Command \
+      "Import-Module BurntToast -ErrorAction SilentlyContinue; if (Get-Command New-BurntToastNotification -ErrorAction SilentlyContinue) { New-BurntToastNotification -Text '$APP_PS', '$MESSAGE_PS' | Out-Null }"
+  fi
 fi
