@@ -30,6 +30,16 @@ test_dry_run_outputs_bell_marker() {
   assert_contains "APP=TestApp" "$out"
   assert_contains "EVENT=permission" "$out"
   assert_contains "MESSAGE=Needs approval" "$out"
+  assert_contains "TAB_MARK=1" "$out"
+  assert_contains "TAB_PREFIX=[ATTN]" "$out"
+  rm -f "$out"
+}
+
+test_clear_tab_mark_dry_run() {
+  local out
+  out="$(mktemp)"
+  "$BIN" --dry-run --clear-tab-mark --app "TestApp" >"$out"
+  assert_contains "TAB_ACTION=clear" "$out"
   rm -f "$out"
 }
 
@@ -54,6 +64,7 @@ main() {
   test_dry_run_outputs_bell_marker
   test_help_outputs_usage
   test_unknown_option_exits_2
+  test_clear_tab_mark_dry_run
   printf 'All tests passed.\n'
 }
 

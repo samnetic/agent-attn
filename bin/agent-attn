@@ -6,6 +6,9 @@ EVENT="attention"
 MESSAGE="Action required"
 URGENCY="normal"
 DRY_RUN="0"
+TAB_MARK="1"
+TAB_PREFIX="[ATTN]"
+CLEAR_TAB_MARK="0"
 
 usage() {
   cat <<'EOF'
@@ -16,6 +19,9 @@ Options:
   --event <name>     Event type (default: attention)
   --message <text>   Notification message (default: Action required)
   --urgency <level>  low|normal|critical (default: normal)
+  --tab-prefix <txt> Tab title prefix when marking (default: [ATTN])
+  --no-tab-mark      Do not mark tab title
+  --clear-tab-mark   Clear tab marker by resetting title to app name
   --dry-run          Print actions instead of sending notifications
   -h, --help         Show this help
 EOF
@@ -43,6 +49,18 @@ while [[ $# -gt 0 ]]; do
       DRY_RUN="1"
       shift
       ;;
+    --tab-prefix)
+      TAB_PREFIX="$2"
+      shift 2
+      ;;
+    --no-tab-mark)
+      TAB_MARK="0"
+      shift
+      ;;
+    --clear-tab-mark)
+      CLEAR_TAB_MARK="1"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -61,13 +79,31 @@ if [[ "$DRY_RUN" == "1" ]]; then
   printf 'EVENT=%s\n' "$EVENT"
   printf 'URGENCY=%s\n' "$URGENCY"
   printf 'MESSAGE=%s\n' "$MESSAGE"
+  printf 'TAB_MARK=%s\n' "$TAB_MARK"
+  printf 'TAB_PREFIX=%s\n' "$TAB_PREFIX"
+  if [[ "$CLEAR_TAB_MARK" == "1" ]]; then
+    printf 'TAB_ACTION=clear\n'
+  else
+    printf 'TAB_ACTION=mark\n'
+  fi
+  exit 0
+fi
+
+if [[ "$CLEAR_TAB_MARK" == "1" ]]; then
+  printf '\033]0;%s\a' "$APP"
   exit 0
 fi
 
 printf '\a'
 
+if [[ "$TAB_MARK" == "1" ]]; then
+  printf '\033]0;%s %s\a' "$TAB_PREFIX" "$APP"
+fi
+
 POWERSHELL_EXE="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 if [[ -x "$POWERSHELL_EXE" ]]; then
+  APP_PS="${APP//\'/\'\'}"
+  MESSAGE_PS="${MESSAGE//\'/\'\'}"
   "$POWERSHELL_EXE" -NoProfile -Command \
-    "Import-Module BurntToast -ErrorAction SilentlyContinue; if (Get-Command New-BurntToastNotification -ErrorAction SilentlyContinue) { New-BurntToastNotification -Text '$APP', '$MESSAGE' | Out-Null }"
+    "Import-Module BurntToast -ErrorAction SilentlyContinue; if (Get-Command New-BurntToastNotification -ErrorAction SilentlyContinue) { New-BurntToastNotification -Text '$APP_PS', '$MESSAGE_PS' | Out-Null }"
 fi

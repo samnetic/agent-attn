@@ -9,6 +9,7 @@ Get reliable "needs your approval" alerts from **Claude Code**, **Codex**, and *
 - One notifier command for all agents: `agent-attn`
 - Native Windows toast path (PowerShell + BurntToast when available)
 - Terminal fallback path (`BEL`) for taskbar flash/sound in Windows Terminal
+- Tab attention marker: sets title to `[ATTN] <App>` so the active tab is visually flagged
 - Works even if one notification channel is unavailable
 
 ## Quickstart (2 minutes)
@@ -44,6 +45,18 @@ Test your notifier:
 
 ```bash
 agent-attn --dry-run --app "Smoke" --event "test" --message "Hello"
+```
+
+Send a real notification and mark tab title:
+
+```bash
+agent-attn --app "Smoke" --event "test" --message "Hello"
+```
+
+Clear the tab marker after you've handled it:
+
+```bash
+agent-attn --clear-tab-mark --app "Ubuntu"
 ```
 
 ## Windows Terminal setup (important)
