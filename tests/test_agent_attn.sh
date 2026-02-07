@@ -32,6 +32,7 @@ test_dry_run_outputs_bell_marker() {
   assert_contains "MESSAGE=Needs approval" "$out"
   assert_contains "TAB_MARK=1" "$out"
   assert_contains "TAB_PREFIX=[ATTN]" "$out"
+  assert_contains "LATCH=0" "$out"
   rm -f "$out"
 }
 
@@ -40,6 +41,23 @@ test_clear_tab_mark_dry_run() {
   out="$(mktemp)"
   "$BIN" --dry-run --clear-tab-mark --app "TestApp" >"$out"
   assert_contains "TAB_ACTION=clear" "$out"
+  rm -f "$out"
+}
+
+test_latch_dry_run() {
+  local out
+  out="$(mktemp)"
+  "$BIN" --dry-run --latch --latch-interval 2 --app "TestApp" >"$out"
+  assert_contains "LATCH=1" "$out"
+  assert_contains "LATCH_INTERVAL=2" "$out"
+  rm -f "$out"
+}
+
+test_clear_latch_dry_run() {
+  local out
+  out="$(mktemp)"
+  "$BIN" --dry-run --clear-latch --app "TestApp" >"$out"
+  assert_contains "LATCH_ACTION=clear" "$out"
   rm -f "$out"
 }
 
@@ -65,6 +83,8 @@ main() {
   test_help_outputs_usage
   test_unknown_option_exits_2
   test_clear_tab_mark_dry_run
+  test_latch_dry_run
+  test_clear_latch_dry_run
   printf 'All tests passed.\n'
 }
 

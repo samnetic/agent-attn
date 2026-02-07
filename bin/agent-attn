@@ -9,6 +9,11 @@ DRY_RUN="0"
 TAB_MARK="1"
 TAB_PREFIX="[ATTN]"
 CLEAR_TAB_MARK="0"
+LATCH="0"
+LATCH_INTERVAL="4"
+CLEAR_LATCH="0"
+
+STATE_DIR="${HOME}/.cache/agent-attn"
 
 usage() {
   cat <<'EOF'
@@ -22,6 +27,9 @@ Options:
   --tab-prefix <txt> Tab title prefix when marking (default: [ATTN])
   --no-tab-mark      Do not mark tab title
   --clear-tab-mark   Clear tab marker by resetting title to app name
+  --latch            Keep ringing bell in background until cleared
+  --latch-interval <sec>  Bell repeat interval for latch mode (default: 4)
+  --clear-latch      Stop background bell latch for this terminal tab
   --dry-run          Print actions instead of sending notifications
   -h, --help         Show this help
 EOF
@@ -61,6 +69,18 @@ while [[ $# -gt 0 ]]; do
       CLEAR_TAB_MARK="1"
       shift
       ;;
+    --latch)
+      LATCH="1"
+      shift
+      ;;
+    --latch-interval)
+      LATCH_INTERVAL="$2"
+      shift 2
+      ;;
+    --clear-latch)
+      CLEAR_LATCH="1"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -73,6 +93,46 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if ! [[ "$LATCH_INTERVAL" =~ ^[0-9]+$ ]] || [[ "$LATCH_INTERVAL" -lt 1 ]]; then
+  printf 'Invalid --latch-interval value: %s\n' "$LATCH_INTERVAL" >&2
+  exit 2
+fi
+
+TTY_PATH="$(tty 2>/dev/null || true)"
+TTY_KEY=""
+PID_FILE=""
+if [[ -n "$TTY_PATH" && "$TTY_PATH" != "not a tty" ]]; then
+  TTY_KEY="${TTY_PATH//\//_}"
+  PID_FILE="${STATE_DIR}/${TTY_KEY}.pid"
+fi
+
+stop_latch() {
+  if [[ -n "$PID_FILE" && -f "$PID_FILE" ]]; then
+    latch_pid="$(cat "$PID_FILE" 2>/dev/null || true)"
+    if [[ -n "$latch_pid" ]] && kill -0 "$latch_pid" 2>/dev/null; then
+      kill "$latch_pid" 2>/dev/null || true
+    fi
+    rm -f "$PID_FILE"
+  fi
+}
+
+start_latch() {
+  if [[ -z "$TTY_PATH" || -z "$PID_FILE" ]]; then
+    return 0
+  fi
+  mkdir -p "$STATE_DIR"
+  if [[ -f "$PID_FILE" ]]; then
+    existing_pid="$(cat "$PID_FILE" 2>/dev/null || true)"
+    if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null; then
+      return 0
+    fi
+    rm -f "$PID_FILE"
+  fi
+
+  nohup bash -lc 'while true; do printf "\a" > "$1"; sleep "$2"; done' _ "$TTY_PATH" "$LATCH_INTERVAL" >/dev/null 2>&1 &
+  echo "$!" >"$PID_FILE"
+}
+
 if [[ "$DRY_RUN" == "1" ]]; then
   printf 'BELL\n'
   printf 'APP=%s\n' "$APP"
@@ -81,12 +141,23 @@ if [[ "$DRY_RUN" == "1" ]]; then
   printf 'MESSAGE=%s\n' "$MESSAGE"
   printf 'TAB_MARK=%s\n' "$TAB_MARK"
   printf 'TAB_PREFIX=%s\n' "$TAB_PREFIX"
+  printf 'LATCH=%s\n' "$LATCH"
+  printf 'LATCH_INTERVAL=%s\n' "$LATCH_INTERVAL"
   if [[ "$CLEAR_TAB_MARK" == "1" ]]; then
     printf 'TAB_ACTION=clear\n'
   else
     printf 'TAB_ACTION=mark\n'
   fi
+  if [[ "$CLEAR_LATCH" == "1" ]]; then
+    printf 'LATCH_ACTION=clear\n'
+  else
+    printf 'LATCH_ACTION=start\n'
+  fi
   exit 0
+fi
+
+if [[ "$CLEAR_LATCH" == "1" ]]; then
+  stop_latch
 fi
 
 if [[ "$CLEAR_TAB_MARK" == "1" ]]; then
@@ -98,6 +169,10 @@ printf '\a'
 
 if [[ "$TAB_MARK" == "1" ]]; then
   printf '\033]0;%s %s\a' "$TAB_PREFIX" "$APP"
+fi
+
+if [[ "$LATCH" == "1" ]]; then
+  start_latch
 fi
 
 POWERSHELL_EXE="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"

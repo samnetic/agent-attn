@@ -10,6 +10,7 @@ Get reliable "needs your approval" alerts from **Claude Code**, **Codex**, and *
 - Native Windows toast path (PowerShell + BurntToast when available)
 - Terminal fallback path (`BEL`) for taskbar flash/sound in Windows Terminal
 - Tab attention marker: sets title to `[ATTN] <App>` so the active tab is visually flagged
+- Optional bell latch mode: keeps tab bell signal active until you clear it
 - Works even if one notification channel is unavailable
 
 ## Quickstart (2 minutes)
@@ -53,11 +54,25 @@ Send a real notification and mark tab title:
 agent-attn --app "Smoke" --event "test" --message "Hello"
 ```
 
+Keep alerting until you clear it (best for missed approvals):
+
+```bash
+agent-attn --latch --app "Claude Code" --event "permission" --message "Approval needed"
+```
+
 Clear the tab marker after you've handled it:
 
 ```bash
 agent-attn --clear-tab-mark --app "Ubuntu"
 ```
+
+Clear background bell latch:
+
+```bash
+agent-attn --clear-latch
+```
+
+Note: Ubuntu/bash often resets tab titles. If title markers disappear quickly, keep using `--latch` for persistent tab attention.
 
 ## Windows Terminal setup (important)
 
